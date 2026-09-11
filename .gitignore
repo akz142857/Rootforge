@@ -1,0 +1,29 @@
+# Go build and test output
+/bin/
+/dist/
+*.test
+*.out
+coverage.*
+/heapdump/hprofx-sh
+
+# Local runtime state
+/.rootforge/
+/data/
+/tmp/
+
+# Local configuration and secrets
+*.local.yaml
+*.local.yml
+.env
+.env.*
+!.env.example
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/
+
+# Incident artifacts can contain production data and must not be committed.
+/cases/
+*.hprof
+*.heapdump
