@@ -64,7 +64,7 @@ Trigger 的职责是回答“是否应该创建或更新一个 Case”，不分�
 
 ### 2. Evidence Retrieval：按 Case、按需、有预算
 
-Case 建立后，Harness Agent 通过受控 Tool Gateway 向 L1 提交 `EvidenceQuery`：
+Case 建立后，ClayHarness 只能通过受控 Tool Gateway 请求 Rootforge 向 L1 提交 `EvidenceQuery`：
 
 ```text
 Case INC-001
@@ -347,7 +347,7 @@ type EvidenceBatch struct {
 
 - [Grafana Alloy access and permissions](https://grafana.com/docs/grafana-cloud/observe-and-act/send-data/alloy/access_permissions/)
 
-访问 Loki、Elasticsearch 等系统时使用只读、最小范围的服务身份。Node Retriever 不将 Docker socket 或任意 Shell 能力暴露给 Harness Agent。
+访问 Loki、Elasticsearch 等系统时使用只读、最小范围的服务身份。Node Retriever 不将 Docker socket 或任意 Shell 能力暴露给 ClayHarness；这些凭证只存在于 Rootforge 管理的执行边界内。
 
 ## Go 包边界建议
 

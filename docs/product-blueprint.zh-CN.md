@@ -230,12 +230,14 @@ Rootforge 由以下核心组件构成：
 | Evidence Access | 从现有系统或节点按需获取有限证据 |
 | Case | 保存一次事故的标准化事实、证据、分析过程和产物 |
 | Analyzer | 对 heap dump、线程、框架状态、部署和代码进行确定性分析 |
-| Harness Agent | 自研 Agent 执行框架，编排工具、提出和验证假设，生成 RCA |
+| Harness Agent | 接入团队独立开发和发布的 ClayHarness；通过 Rootforge 工具提出和验证假设，生成符合输出 Schema 的结果 |
 | Forge | 生成候选修复并在隔离环境验证 |
 | Policy / Action | 决定并执行明确允许的动作，支持验证与回滚 |
 | Notification | 无法安全自动推进时把完整 Case 发送给开发者 |
 
 其中现有的 `hprofx` 可以成为第一个 JVM Analyzer。它的长期定位不是单独竞争通用 heap dump 工具，而是为 Rootforge 提供框架感知的 JVM 现场证据。
+
+Rootforge 拥有事故领域模型、Case、工具、证据、权限、审计和行动边界；ClayHarness 只拥有通用 Agent 执行与推理运行时及其 checkpoint。v0.1 将 ClayHarness 作为独立 Rust 仓库和独立服务开发、版本化、测试与部署；Rootforge 通过 App Server Protocol（通常使用生成的 Go SDK）创建 delegated Session，并作为 Execution Host 响应工具请求，不在进程内嵌入 ClayHarness Runtime。
 
 组件如何组成完整系统，以及各层的权限与责任边界，详见[系统分层与边界](system-layers.zh-CN.md)。
 

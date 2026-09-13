@@ -1,23 +1,25 @@
-# Harness Agent
+# ClayHarness adapter
 
-This is Rootforge's own evidence-driven Agent runtime. It receives a scoped
-Incident Case, constructs and tests hypotheses, selects registered tools, asks
-for additional evidence when useful, and produces a versioned conclusion or
-developer escalation.
+This package adapts Rootforge domain state to the independently versioned
+ClayHarness App Server Protocol, normally through its generated Go SDK. It does
+not embed or implement a second Agent runtime.
 
-Planned internal boundaries:
+Its responsibilities are deliberately narrow:
 
 ```text
-harness/
-├── runtime       Investigation loop and termination conditions
-├── planner       Next-step and information-gain planning
-├── hypothesis    Candidate causes, support, contradiction, confidence
-├── context       Bounded model context assembled from the Case
-├── budget        Step, token, time, query, and cost limits
-├── evaluator     Evidence sufficiency and conclusion checks
-└── conclusion    Structured RCA or escalation result
+Incident Case                     -> Run request
+Evidence / Finding / ContextGraph -> Artifact references
+Rootforge Tool Gateway            -> Delegated Tool Bridge
+ClayHarness Run result            -> RCA / Escalation
+ClayHarness Event                 -> Case history / Audit
 ```
 
-The Harness Agent never receives direct infrastructure credentials or arbitrary
-shell access. It can call only tools authorized for the current Case. It may
-propose actions, but it cannot authorize or execute them.
+Rootforge supplies the output schema that gives the generic run its RCA and
+escalation semantics. No Rootforge domain type belongs in ClayHarness's public
+API.
+
+The adapter never treats a ClayHarness checkpoint as authoritative Case state.
+It persists runtime events and checkpoints through Rootforge, while the Case
+remains the source of truth. Tool calls always return through the Rootforge Tool
+Gateway for Case-scope checks, policy checks, bounded execution, evidence
+persistence, and audit.

@@ -3,10 +3,10 @@
 > **Find the root. Forge the fix.**
 
 Rootforge is an open-source, unattended incident investigation and remediation
-system. It detects production failures, uses its own evidence-driven Harness
-Agent to trace likely root causes back to source code, prepares or applies safe
-remediation according to policy, and notifies developers when human judgment is
-required.
+system. It detects production failures, integrates with the independently
+developed ClayHarness Agent runtime to trace likely root causes back to source
+code, prepares or applies safe remediation according to policy, and notifies
+developers when human judgment is required.
 
 An incident event starts the workflow; a developer does not need to ask Rootforge
 a question first. Rootforge connects the parts of incident response that are
@@ -47,10 +47,40 @@ intentionally narrow: detect out-of-memory incidents in Docker-based production
 environments, investigate them without waiting for a human prompt, generate an
 evidence-backed root cause analysis, and notify the responsible developer.
 
+The first executable slice now accepts normalized incident events over HTTP,
+validates their identity and scope, deduplicates repeated signals into an open
+Incident, and creates or updates an authoritative in-memory Case. Durable Case
+storage, evidence acquisition, and ClayHarness dispatch are the next slices.
+
 Unattended investigation and unattended mutation are separate capabilities.
 Write actions default to denied. Later milestones may prepare a pull request or
 execute explicitly allowlisted, reversible remediation when deployment policy
 permits it.
+
+Run the development control plane:
+
+```bash
+go run ./cmd/rootforged -listen 127.0.0.1:8080
+```
+
+Submit a synthetic OOM event:
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/v1alpha1/events \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "type": "container.oom",
+    "source": "docker",
+    "occurred_at": "2026-09-12T03:00:00Z",
+    "environment": "development",
+    "service": "example-api",
+    "container": "container-123",
+    "severity": "critical"
+  }'
+```
+
+The response contains the Case ID. Development storage is process-local and is
+lost when `rootforged` exits.
 
 ## v0.1: OOM Investigator
 
@@ -97,9 +127,10 @@ An investigation report should include:
 
 ## Architecture direction
 
-Rootforge separates event intake, bounded evidence acquisition, its centralized
-Harness Agent, and policy-governed actions. It queries existing observability
-systems when available and uses restricted, on-demand node retrievers otherwise.
+Rootforge separates event intake, bounded evidence acquisition, an independent
+ClayHarness Agent service, and policy-governed actions. It queries existing
+observability systems when available and uses restricted, on-demand node
+retrievers otherwise.
 
 ```text
 +---------------- Production ----------------+
@@ -113,7 +144,10 @@ systems when available and uses restricted, on-demand node retrievers otherwise.
                       |
                       v
 +---------------- Rootforge ------------------+
-|  Trigger -> Incident Case -> Harness Agent  |
+|  Trigger -> Incident Case -> Harness Adapter|----> ClayHarness App Server
+|                 ^                  |         |       (independent service)
+|                 |                  |         |
+|                 +----- Tool Gateway+<--------|---- delegated tool requests
 |                         -> Forge             |
 |                         -> Policy / Action   |
 +---------------------+-----------------------+
@@ -129,8 +163,10 @@ Evidence sources provide facts such as:
 - CPU, memory, disk, and network signals
 - Service, image, build, and deployment metadata
 
-The centralized Harness Agent performs correlation and reasoning through guarded
-tools. Large-model agents do not run with shell access on production hosts.
+ClayHarness performs generic Agent execution and reasoning through Rootforge's
+guarded tools. Rootforge remains authoritative for Case state, evidence,
+permissions, audit, and actions. Large-model agents do not run with shell access
+on production hosts.
 
 ## Runtime-to-code mapping
 
@@ -198,8 +234,9 @@ Incident -> Service -> Container -> Image -> Build -> Git Commit -> Source Code
   evidence that raises or lowers it.
 - **Open integrations.** Rootforge should complement existing observability and
   coding tools rather than replace them.
-- **Agent behind a tool boundary.** The Harness Agent has no direct production
-  credentials and cannot bypass the Policy or Action layers.
+- **Agent behind a tool boundary.** ClayHarness has no direct production or
+  repository credentials and cannot bypass Rootforge's Tool Gateway, Policy, or
+  Action layers.
 
 ## Contributing
 

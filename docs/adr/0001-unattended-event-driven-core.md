@@ -1,6 +1,6 @@
 # ADR 0001: Unattended, event-driven core
 
-- Status: Accepted
+- Status: Superseded in part by ADR 0002
 - Date: 2026-09-11
 
 ## Context

@@ -32,8 +32,8 @@ Rootforge 分为六个纵向层，以及一个贯穿所有层的控制面：
 +---------------------------+--------------------------+
                             v
 +------------------------------------------------------+
-| L5 Harness Agent 调查层                              |
-| 自研 Agent 提出假设、调用工具、验证证据、形成 RCA       |
+| L5 ClayHarness 调查运行时                            |
+| 通用 Agent 提出假设、请求工具、验证证据、形成结构化输出   |
 +---------------------------+--------------------------+
                             v
 +------------------------------------------------------+
@@ -237,11 +237,11 @@ Incident
 
 **这一层回答“这些事实分别属于哪个运行实体和哪份代码”。**
 
-## L5：Harness Agent 调查层（Investigate）
+## L5：ClayHarness 调查运行时（Investigate）
 
 ### 定义
 
-Rootforge 自研的 Harness Agent 像事故调查工程师一样编排工具，基于 Case 中的事实提出假设，主动寻找支持或反对证据，最终形成可审查的 RCA。HolmesGPT 可以作为评估基线，但不是运行时依赖。
+Rootforge 通过 App Server Protocol 接入团队独立开发、独立版本化、独立测试和独立运行的 ClayHarness 服务，通常由生成的 Go SDK 封装协议。ClayHarness 像调查工程师一样执行通用 Agent 循环；Rootforge 将 Case 中的事实映射为通用 Artifact 和工具描述，并通过输出 Schema 赋予运行结果 RCA 或升级请求等事故领域语义。HolmesGPT 可以作为评估基线，但不是运行时依赖。
 
 调查循环：
 
@@ -261,7 +261,7 @@ Rootforge 自研的 Harness Agent 像事故调查工程师一样编排工具，�
 - `Inference`：由事实支持的推断
 - `Unknown`：尚无足够材料判断的信息
 
-典型输出是版本化 `RCA`：事故摘要、时间线、影响、根因候选、可信度、证据、反证、未知项以及修复建议。
+ClayHarness 的直接输出是符合 Rootforge 所提供 Schema 的通用 `RunResult`。Rootforge 验证并映射后形成版本化 `RCA`：事故摘要、时间线、影响、根因候选、可信度、证据、反证、未知项以及修复建议。
 
 ### 边界
 
@@ -281,7 +281,9 @@ Rootforge 自研的 Harness Agent 像事故调查工程师一样编排工具，�
 - 因为找到一个合理解释就停止寻找关键反证
 - 直接执行生产变更
 
-Harness Agent 不直接持有生产凭证，也不能调用未在当前 Case 注册和授权的工具。它可以提出动作，但不能批准或执行动作。
+ClayHarness 不直接持有 Docker、GitHub、生产数据库、云平台或其他基础设施凭证，也不能自行执行 Shell。它只能请求当前 Run 声明的工具；Rootforge Tool Gateway 仍必须逐次执行 Case 范围检查和 Policy 检查，在完成受限只读操作并保存 Evidence 与审计记录后，才返回结构化结果。ClayHarness 可以在输出中提出动作，但不能批准或执行动作。
+
+ClayHarness 只拥有可恢复的运行时 checkpoint。Rootforge Case 始终是事故事实、证据、调查历史、RCA、审批和行动记录的唯一权威来源，二者不能各自维护一套调查真相。
 
 **这一层回答“什么最可能导致事故，以及证据是否足够”。**
 
@@ -330,7 +332,7 @@ RCA
 - 因为测试通过就自动认定根因正确
 - 隐藏失败测试或扩大补丁范围
 - 未经 Policy 授权向仓库推送、创建 PR 或修改环境
-- 由 Harness Agent 或 Forge 直接使用生产凭证执行动作
+- 由 ClayHarness 或 Forge 直接使用生产凭证执行动作
 - 在 v0.1 中直接部署、重启或修改生产环境
 - 将生产密钥和原始敏感证据带入不受控的代码执行环境
 
@@ -349,7 +351,7 @@ RCA
 - 修复、推送、PR 和生产动作的审批门
 - 全链路审计、重放和保留策略
 
-任何层都不能绕过控制面获得额外权限。控制面也不能修改 Analyzer 事实或替 Harness Agent 选择根因。
+任何层都不能绕过控制面获得额外权限。控制面也不能修改 Analyzer 事实或替 ClayHarness 选择根因。
 
 ## 层间契约
 
@@ -359,9 +361,10 @@ RCA
 | --- | --- | --- |
 | Evidence Source | `EvidenceBatch` | Case |
 | Case | 证据快照 | Analyzer / Correlator |
-| Analyzer | `Finding` | Case / Correlator / Harness Agent |
-| Correlator | `ContextGraph`、Timeline | Harness Agent |
-| Harness Agent | `RCA`、升级请求 | Forge / Notification / Case |
+| Analyzer | `Finding` | Case / Correlator / ClayHarness Adapter |
+| Correlator | `ContextGraph`、Timeline | ClayHarness Adapter |
+| ClayHarness | `RunResult`、Event、Checkpoint | Rootforge Adapter |
+| Rootforge Adapter | `RCA`、升级请求 | Forge / Notification / Case |
 | Forge | `ChangeProposal`、测试结果 | Policy / Case |
 | Policy | `PolicyDecision` | Action / Notification / Case |
 | Action | `ActionResult`、验证与回滚结果 | Case / Notification |
@@ -381,12 +384,12 @@ RCA
 ```text
 生产环境                  Rootforge 控制平面             隔离执行环境
 
-Node Retriever / Connector -> Case / Analyzer / Harness -> Forge Sandbox -> Action
+Node Retriever / Connector -> Case / Analyzer / ClayHarness -> Forge Sandbox -> Action
       只读、低权限               集中推理            候选代码       独立凭证
 ```
 
 - Node Retriever 在需要时靠近工作负载部署，但不承载开放式 Agent，也不持续向 Rootforge 传输全部日志。
-- Case、Correlation 和 Harness Agent 集中运行，便于策略与审计。
+- v0.1 中 Case 与 Correlation 留在 Rootforge；ClayHarness 作为独立服务运行。Rootforge 通过 delegated Execution Host 保留工具策略、凭证、Evidence 持久化和审计权威。
 - Forge 使用临时、隔离、无生产凭证的代码工作区。
 - Action Executor 使用单独的短期凭证，并且只能执行 Policy 已授权的具体动作。
 - 原始大文件可以留在受控存储中，通过引用和按需读取避免重复传输。
@@ -401,7 +404,7 @@ Node Retriever / Connector -> Case / Analyzer / Harness -> Forge Sandbox -> Acti
 | L2 Case | 本地目录 + 明确的 Case manifest 与证据索引 |
 | L3 Analyze | 集成 `hprofx`，输出 JVM 与 Spring AMQP Finding |
 | L4 Correlate | 通过 manifest 映射服务、镜像、仓库和 commit |
-| L5 Harness | 无人提问也能基于事件、证据和源码生成结构化 RCA |
+| L5 ClayHarness | 无人提问也能基于通用输入和受控工具生成符合 RCA Schema 的结构化结果 |
 | L6 Forge & Act | 暂不改生产；输出修复建议并自动通知开发者 |
 
 v0.1 的纵向切片因此是：
