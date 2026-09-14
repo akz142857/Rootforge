@@ -2,9 +2,9 @@
 
 Rootforge is currently defining its first unattended OOM investigation slice.
 Implementation changes must preserve the boundaries in `ARCHITECTURE.md` and
-the evidence rules in `docs/`. The first executable slice covers incident event
-intake and in-memory Case creation; most remaining packages are still boundary
-scaffolds.
+the evidence rules in `docs/`. Implemented code covers incident intake, durable
+local Case state, and a leased investigation Outbox; most remaining packages are
+still boundary scaffolds.
 
 ## Development commands
 

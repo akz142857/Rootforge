@@ -3,6 +3,7 @@ package casefile
 import (
 	"context"
 	"errors"
+	"sort"
 	"sync"
 	"time"
 
@@ -23,6 +24,7 @@ type IDGenerator func(time.Time) (string, error)
 type Store interface {
 	ApplyEvent(context.Context, trigger.Event, time.Time, IDGenerator) (Case, bool, error)
 	Get(context.Context, string) (Case, error)
+	ListPendingInvestigation(context.Context) ([]Case, error)
 }
 
 // MemoryStore is a concurrency-safe, process-local Store for development and tests.
@@ -53,11 +55,19 @@ func (s *MemoryStore) ApplyEvent(ctx context.Context, event trigger.Event, now t
 	if caseID, ok := s.openByPrint[fingerprint]; ok {
 		current := s.byID[caseID]
 		if current.Incident.Open() {
-			if err := current.Incident.Apply(event); err != nil {
+			changed, err := current.Incident.Apply(event)
+			if err != nil {
 				return Case{}, false, err
 			}
+			if !changed {
+				return current.Clone(), false, nil
+			}
 			current.Revision++
-			current.UpdatedAt = now.UTC()
+			updatedAt := now.UTC()
+			if updatedAt.Before(current.UpdatedAt) {
+				updatedAt = current.UpdatedAt
+			}
+			current.UpdatedAt = updatedAt
 			s.byID[caseID] = current.Clone()
 			return current.Clone(), false, nil
 		}
@@ -102,4 +112,21 @@ func (s *MemoryStore) Get(ctx context.Context, caseID string) (Case, error) {
 		return Case{}, ErrNotFound
 	}
 	return stored.Clone(), nil
+}
+
+// ListPendingInvestigation implements Store.
+func (s *MemoryStore) ListPendingInvestigation(ctx context.Context) ([]Case, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	result := make([]Case, 0)
+	for _, stored := range s.byID {
+		if stored.Incident.Status == incident.StatusPendingInvestigation {
+			result = append(result, stored.Clone())
+		}
+	}
+	sort.Slice(result, func(left, right int) bool { return result[left].ID < result[right].ID })
+	return result, nil
 }

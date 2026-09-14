@@ -8,6 +8,6 @@ Raw facts, deterministic findings, and model inferences remain distinguishable.
 Existing records are versioned or appended rather than silently overwritten.
 
 The first slice implements atomic event application, revision increments, and a
-concurrency-safe in-memory Store. The memory adapter deliberately makes no
-durability claim; a persistent Store must preserve the same atomic
-deduplication contract.
+concurrency-safe in-memory Store. `internal/storage/local` adds an atomically
+replaced JSON snapshot that rebuilds and validates its open-Incident index on
+startup. Both adapters preserve the same deduplication contract.

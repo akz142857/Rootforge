@@ -2,6 +2,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 
 	v1alpha1 "rootforge/api/v1alpha1"
 	"rootforge/internal/casefile"
+	"rootforge/internal/incident"
 	"rootforge/internal/trigger"
 )
 
@@ -18,12 +20,17 @@ const maxRequestBytes = 1 << 20
 
 // Handler serves the first Rootforge incident intake and Case inspection API.
 type Handler struct {
-	cases *casefile.Service
+	cases caseService
 	mux   *http.ServeMux
 }
 
+type caseService interface {
+	RecordEvent(context.Context, trigger.Event) (casefile.Case, bool, error)
+	Get(context.Context, string) (casefile.Case, error)
+}
+
 // New creates an HTTP handler backed by the authoritative Case service.
-func New(cases *casefile.Service) (*Handler, error) {
+func New(cases caseService) (*Handler, error) {
 	if cases == nil {
 		return nil, errors.New("create HTTP API: case service is required")
 	}
@@ -77,6 +84,10 @@ func (h *Handler) acceptEvent(response http.ResponseWriter, request *http.Reques
 		return
 	}
 	stored, created, err := h.cases.RecordEvent(request.Context(), event)
+	if errors.Is(err, incident.ErrEventIDConflict) || errors.Is(err, incident.ErrEventScopeConflict) {
+		writeAPIError(response, http.StatusConflict, "event_conflict", err.Error())
+		return
+	}
 	if err != nil {
 		writeAPIError(response, http.StatusInternalServerError, "internal_error", "unable to record incident event")
 		return

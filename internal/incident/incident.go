@@ -2,9 +2,17 @@ package incident
 
 import (
 	"errors"
+	"maps"
 	"time"
 
 	"rootforge/internal/trigger"
+)
+
+var (
+	// ErrEventIDConflict indicates that one source reused an Event ID with different content.
+	ErrEventIDConflict = errors.New("event ID already exists with different content")
+	// ErrEventScopeConflict indicates that an explicit dedupe key grouped incompatible scopes.
+	ErrEventScopeConflict = errors.New("event scope conflicts with incident")
 )
 
 // Status is the lifecycle state of an Incident.
@@ -23,18 +31,18 @@ const (
 
 // Incident is the deduplicated lifecycle state derived from one or more Events.
 type Incident struct {
-	Fingerprint     string
-	Type            string
-	Status          Status
-	Environment     string
-	Service         string
-	Node            string
-	Workload        string
-	Container       string
-	Severity        string
-	FirstOccurredAt time.Time
-	LastOccurredAt  time.Time
-	Events          []trigger.Event
+	Fingerprint     string          `json:"fingerprint"`
+	Type            string          `json:"type"`
+	Status          Status          `json:"status"`
+	Environment     string          `json:"environment"`
+	Service         string          `json:"service,omitempty"`
+	Node            string          `json:"node,omitempty"`
+	Workload        string          `json:"workload,omitempty"`
+	Container       string          `json:"container,omitempty"`
+	Severity        string          `json:"severity,omitempty"`
+	FirstOccurredAt time.Time       `json:"first_occurred_at"`
+	LastOccurredAt  time.Time       `json:"last_occurred_at"`
+	Events          []trigger.Event `json:"events"`
 }
 
 // New creates a pending Incident from a validated Event.
@@ -59,17 +67,34 @@ func New(event trigger.Event) (Incident, error) {
 	}, nil
 }
 
-// Apply adds another occurrence to the same open Incident.
-func (i *Incident) Apply(event trigger.Event) error {
+// Apply adds another occurrence to the same open Incident. Replaying the same
+// source-scoped Event ID is idempotent and returns false.
+func (i *Incident) Apply(event trigger.Event) (bool, error) {
 	if i == nil {
-		return errors.New("apply event: incident is nil")
+		return false, errors.New("apply event: incident is nil")
 	}
 	event = event.Normalize()
 	if err := event.Validate(); err != nil {
-		return err
+		return false, err
 	}
 	if event.Fingerprint() != i.Fingerprint {
-		return errors.New("apply event: fingerprint does not match incident")
+		return false, errors.New("apply event: fingerprint does not match incident")
+	}
+	if event.Type != i.Type || event.Environment != i.Environment ||
+		event.Service != i.Service || event.Node != i.Node ||
+		event.Workload != i.Workload || event.Container != i.Container {
+		return false, ErrEventScopeConflict
+	}
+	if event.ID != "" {
+		for _, existing := range i.Events {
+			if existing.Source != event.Source || existing.ID != event.ID {
+				continue
+			}
+			if sameEvent(existing, event) {
+				return false, nil
+			}
+			return false, ErrEventIDConflict
+		}
 	}
 	if event.OccurredAt.Before(i.FirstOccurredAt) {
 		i.FirstOccurredAt = event.OccurredAt
@@ -81,7 +106,7 @@ func (i *Incident) Apply(event trigger.Event) error {
 		i.Severity = event.Severity
 	}
 	i.Events = append(i.Events, event.Clone())
-	return nil
+	return true, nil
 }
 
 // Open reports whether future matching Events may still update this Incident.
@@ -97,4 +122,21 @@ func (i Incident) Clone() Incident {
 		i.Events[index] = event.Clone()
 	}
 	return i
+}
+
+func sameEvent(left, right trigger.Event) bool {
+	left = left.Normalize()
+	right = right.Normalize()
+	return left.ID == right.ID &&
+		left.Type == right.Type &&
+		left.Source == right.Source &&
+		left.OccurredAt.Equal(right.OccurredAt) &&
+		left.Environment == right.Environment &&
+		left.Service == right.Service &&
+		left.Node == right.Node &&
+		left.Workload == right.Workload &&
+		left.Container == right.Container &&
+		left.Severity == right.Severity &&
+		left.DedupeKey == right.DedupeKey &&
+		maps.Equal(left.Attributes, right.Attributes)
 }

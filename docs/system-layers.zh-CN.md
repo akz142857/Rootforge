@@ -401,7 +401,7 @@ Node Retriever / Connector -> Case / Analyzer / ClayHarness -> Forge Sandbox -> 
 | 层 | v0.1 方式 |
 | --- | --- |
 | L1 Acquire | 接收 Docker OOM 或测试事件；从 Docker、journald 或 Loki 按需取证 |
-| L2 Case | 本地目录 + 明确的 Case manifest 与证据索引 |
+| L2 Case | 原子持久化的本地 Case 状态 + 可重启恢复的调查任务 Outbox；后续再加入 Evidence manifest 与索引 |
 | L3 Analyze | 集成 `hprofx`，输出 JVM 与 Spring AMQP Finding |
 | L4 Correlate | 通过 manifest 映射服务、镜像、仓库和 commit |
 | L5 ClayHarness | 无人提问也能基于通用输入和受控工具生成符合 RCA Schema 的结构化结果 |

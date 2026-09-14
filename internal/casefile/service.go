@@ -67,6 +67,11 @@ func (s *Service) Get(ctx context.Context, caseID string) (Case, error) {
 	return s.store.Get(ctx, caseID)
 }
 
+// ListPendingInvestigation returns Cases that still need an investigation Run.
+func (s *Service) ListPendingInvestigation(ctx context.Context) ([]Case, error) {
+	return s.store.ListPendingInvestigation(ctx)
+}
+
 func randomCaseID(now time.Time) (string, error) {
 	var suffix [4]byte
 	if _, err := rand.Read(suffix[:]); err != nil {

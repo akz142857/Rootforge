@@ -16,3 +16,8 @@ The first implemented endpoints are:
 Event intake requires `type`, `source`, `occurred_at`, `environment`, and at
 least one of `service`, `node`, `workload`, or `container`. This API is
 `v1alpha1`; compatibility is not yet promised across minor development changes.
+
+Producers should provide a stable `event_id`. Replaying the same
+`source + event_id` with identical content is idempotent; reusing it with
+different content, or grouping incompatible scopes under one explicit
+`dedupe_key`, returns `409 event_conflict`.

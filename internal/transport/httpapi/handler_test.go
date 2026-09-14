@@ -64,6 +64,35 @@ func TestEventIntakeRejectsUnknownFields(t *testing.T) {
 	}
 }
 
+func TestEventIntakeRejectsConflictingEventID(t *testing.T) {
+	now := time.Date(2026, 9, 13, 4, 0, 0, 0, time.UTC)
+	service, err := casefile.NewService(
+		casefile.NewMemoryStore(),
+		casefile.WithClock(func() time.Time { return now }),
+		casefile.WithIDGenerator(func(time.Time) (string, error) { return "INC-test", nil }),
+	)
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+	handler, err := New(service)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	payload := v1alpha1.IncidentEvent{EventID: "event-1", Type: "container.oom", Source: "docker", OccurredAt: now, Environment: "production", Container: "abc", Severity: "critical"}
+	postEvent(t, handler, payload)
+	payload.Severity = "warning"
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v1alpha1/events", bytes.NewReader(body))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusConflict {
+		t.Fatalf("status = %d, body = %s, want 409", response.Code, response.Body.String())
+	}
+}
+
 func postEvent(t *testing.T, handler http.Handler, event v1alpha1.IncidentEvent) v1alpha1.EventAccepted {
 	t.Helper()
 	body, err := json.Marshal(event)

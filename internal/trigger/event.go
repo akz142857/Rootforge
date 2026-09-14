@@ -11,19 +11,19 @@ import (
 
 // Event is a normalized, low-volume signal that may create or update an Incident.
 type Event struct {
-	ID          string
-	Type        string
-	Source      string
-	OccurredAt  time.Time
-	ObservedAt  time.Time
-	Environment string
-	Service     string
-	Node        string
-	Workload    string
-	Container   string
-	Severity    string
-	DedupeKey   string
-	Attributes  map[string]string
+	ID          string            `json:"id,omitempty"`
+	Type        string            `json:"type"`
+	Source      string            `json:"source"`
+	OccurredAt  time.Time         `json:"occurred_at"`
+	ObservedAt  time.Time         `json:"observed_at"`
+	Environment string            `json:"environment"`
+	Service     string            `json:"service,omitempty"`
+	Node        string            `json:"node,omitempty"`
+	Workload    string            `json:"workload,omitempty"`
+	Container   string            `json:"container,omitempty"`
+	Severity    string            `json:"severity,omitempty"`
+	DedupeKey   string            `json:"dedupe_key,omitempty"`
+	Attributes  map[string]string `json:"attributes,omitempty"`
 }
 
 // Normalize trims boundary whitespace and copies mutable data owned by callers.

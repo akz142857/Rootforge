@@ -156,13 +156,15 @@ rootforge/
 │   ├── forge/                  Patch generation and verification orchestration
 │   ├── harness/                ClayHarness adapter and domain schema mapping
 │   ├── incident/               Incident lifecycle controller
+│   ├── investigation/          Durable investigation task Outbox
 │   ├── llm/                    Model-provider adapters
 │   ├── notification/           Human escalation
 │   ├── policy/                 Permission and automation gates
-│   ├── storage/                Persistence adapters
+│   ├── storage/local/          Single-process durable local adapters
 │   ├── tool/                   Agent tool contracts and guarded runner
 │   ├── transport/httpapi/      Versioned control-plane HTTP transport
-│   └── trigger/                Incident event adapters
+│   ├── trigger/                Incident event adapters
+│   └── workflow/               Cross-domain application workflows
 └── testdata/cases/             Sanitized, reproducible incident fixtures
 ```
 
@@ -176,10 +178,16 @@ The current control plane implements one narrow path:
 POST /api/v1alpha1/events
   -> normalize and validate Event
   -> derive an opaque incident fingerprint
-  -> atomically create or update an open in-memory Case
+  -> atomically create or update an open durable Case
+  -> idempotently ensure a pending investigation task
   -> GET /api/v1alpha1/cases/{caseID}
 ```
 
-The in-memory Store is a development adapter, not a production persistence
-decision. ClayHarness dispatch, evidence acquisition, lifecycle transitions,
-and durable storage remain outside this slice.
+Case state and the investigation Outbox use separate atomically replaced JSON
+snapshots. Intake writes the Case first; retry and startup reconciliation repair
+the narrow crash gap before the Outbox write, while periodic reconciliation also
+heals it as the daemon remains running. Expiring lease tokens provide
+at-least-once task delivery without allowing a stale worker to acknowledge new
+work. The local adapter supports one process and is not a distributed storage
+decision. ClayHarness dispatch, evidence acquisition, and lifecycle transitions
+remain outside this slice.

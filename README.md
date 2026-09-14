@@ -47,10 +47,11 @@ intentionally narrow: detect out-of-memory incidents in Docker-based production
 environments, investigate them without waiting for a human prompt, generate an
 evidence-backed root cause analysis, and notify the responsible developer.
 
-The first executable slice now accepts normalized incident events over HTTP,
-validates their identity and scope, deduplicates repeated signals into an open
-Incident, and creates or updates an authoritative in-memory Case. Durable Case
-storage, evidence acquisition, and ClayHarness dispatch are the next slices.
+The control plane now accepts normalized incident events over HTTP, validates
+their identity and scope, deduplicates repeated signals into an open Incident,
+and durably creates or updates the authoritative Case. A persistent Outbox
+retains pending ClayHarness investigation work across process restarts.
+Evidence acquisition and ClayHarness dispatch are the next slices.
 
 Unattended investigation and unattended mutation are separate capabilities.
 Write actions default to denied. Later milestones may prepare a pull request or
@@ -60,7 +61,9 @@ permits it.
 Run the development control plane:
 
 ```bash
-go run ./cmd/rootforged -listen 127.0.0.1:8080
+go run ./cmd/rootforged \
+  -listen 127.0.0.1:8080 \
+  -data-dir .rootforge/data
 ```
 
 Submit a synthetic OOM event:
@@ -69,6 +72,7 @@ Submit a synthetic OOM event:
 curl -X POST http://127.0.0.1:8080/api/v1alpha1/events \
   -H 'Content-Type: application/json' \
   -d '{
+    "event_id": "docker-event-123",
     "type": "container.oom",
     "source": "docker",
     "occurred_at": "2026-09-12T03:00:00Z",
@@ -79,8 +83,9 @@ curl -X POST http://127.0.0.1:8080/api/v1alpha1/events \
   }'
 ```
 
-The response contains the Case ID. Development storage is process-local and is
-lost when `rootforged` exits.
+The response contains the Case ID. Cases and pending investigation tasks survive
+restart in the selected data directory. The local JSON storage adapter supports
+one `rootforged` process and is not a distributed production database.
 
 ## v0.1: OOM Investigator
 

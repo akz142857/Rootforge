@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-Rootforge is an unattended, event-driven incident investigation system. The root module now has its first executable slice: HTTP incident intake, normalization, open-Incident deduplication, in-memory Case creation/update, and Case lookup. Most remaining packages are still boundary scaffolds.
+Rootforge is an unattended, event-driven incident investigation system. The root module implements HTTP incident intake, normalization, idempotent open-Incident aggregation, durable local Case snapshots, a leased investigation Outbox, startup reconciliation, and Case lookup. Most remaining packages are still boundary scaffolds.
 
-The only working code is `heapdump/hprofx/` — a standalone, zero-dependency Java HPROF heap dump analyzer (~2.5k lines) extracted from a real RabbitMQ WorkPool OOM investigation. It is a separate Go module and will be integrated into the scaffold through `internal/analyzer/heapdump/`.
+The other substantial implementation is `heapdump/hprofx/` — a standalone, zero-dependency Java HPROF heap dump analyzer (~2.5k lines) extracted from a real RabbitMQ WorkPool OOM investigation. It is a separate Go module and will be integrated through `internal/analyzer/heapdump/`.
 
 When adding the first real implementation to a scaffold package, keep the existing `doc.go` contract line and the package `README.md` in sync with what you build.
 
